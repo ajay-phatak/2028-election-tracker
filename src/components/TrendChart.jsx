@@ -39,6 +39,25 @@ const fmtDate = (t, utc) =>
 const fmtTime = (t) =>
   new Date(t * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 
+// Spans longer than ~11 months label ticks "Feb '25" (month + 2-digit year).
+const LONG_SPAN = 335 * 86400;
+const fmtMonthYear = (t, utc) => {
+  const d = new Date(t * 1000);
+  const m = d.toLocaleDateString(undefined, { month: "short", ...(utc && { timeZone: "UTC" }) });
+  const y = String(utc ? d.getUTCFullYear() : d.getFullYear()).slice(-2);
+  return `${m} '${y}`;
+};
+
+// `count` evenly spaced ticks from first to last point, so the axis is a true
+// time scale however densely the points are sampled.
+const timeTicks = (data, count = 5) => {
+  if (!data || data.length < 2) return undefined;
+  const lo = data[0].t;
+  const hi = data[data.length - 1].t;
+  if (!(hi > lo)) return undefined;
+  return Array.from({ length: count }, (_, i) => Math.round(lo + ((hi - lo) * i) / (count - 1)));
+};
+
 // Median of a sorted array of gaps (seconds). Odd/even-safe; Infinity on empty
 // input so a 0/1-point series never looks "fine"-grained.
 const median = (sorted) => {
@@ -121,6 +140,8 @@ export default function TrendChart({ data, series, volumeKey, height = 224, doma
   const fine = median(gaps) < 86400;
   const intraday = Boolean(data && data.length > 1 && data[data.length - 1].t - data[0].t <= 2 * 86400);
 
+  const longSpan = Boolean(data && data.length > 1 && data[data.length - 1].t - data[0].t > LONG_SPAN);
+
   return (
     <div ref={ref} style={{ height }} className="w-full">
       {width > 0 && (
@@ -133,7 +154,19 @@ export default function TrendChart({ data, series, volumeKey, height = 224, doma
           <CartesianGrid stroke="#1f2738" strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey="t"
-            tickFormatter={intraday ? fmtTime : (t) => fmtDate(t, utcDates)}
+            type="number"
+            scale="time"
+            domain={["dataMin", "dataMax"]}
+            ticks={timeTicks(data, intraday ? 4 : 5)}
+            interval={0}
+            padding={{ left: 12, right: 12 }}
+            tickFormatter={
+              intraday
+                ? fmtTime
+                : longSpan
+                  ? (t) => fmtMonthYear(t, utcDates)
+                  : (t) => fmtDate(t, utcDates)
+            }
             tick={{ fill: "#8a97ac", fontSize: 11 }}
             stroke="#1f2738"
             minTickGap={48}
