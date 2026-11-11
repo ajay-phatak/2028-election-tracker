@@ -1,0 +1,24 @@
+# Cron-only Worker that drives the KV warmer (functions/api/refresh.js).
+#
+# Replaces the GitHub Actions schedule, which GitHub throttles (the "*/15" tick
+# actually fires ~hourly, with gaps of 8h+ observed) and auto-disables after 60
+# days without repo activity. Cloudflare Cron Triggers fire on time, free.
+#
+# This lives in a SUBDIRECTORY on purpose: a wrangler.toml at the repo root makes
+# Cloudflare's git integration treat the Pages project as a Worker and break its
+# build. Deploy it by hand from this folder (see README.md here).
+
+name = "election-tracker-cron"
+main = "index.js"
+compatibility_date = "2026-09-01" # a Workers runtime date, not an election-year constant
+
+# No public URL: this Worker only runs on its schedule.
+workers_dev = false
+
+[triggers]
+# Must match the CRON_* constants in index.js.
+crons = ["*/15 * * * *", "7 */4 * * *"]
+
+[vars]
+TARGET_URL = "https://2028-election-tracker.pages.dev" # TODO(2028): confirm host
+# REFRESH_TOKEN is a secret: `npx wrangler secret put REFRESH_TOKEN`

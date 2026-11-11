@@ -1,0 +1,4 @@
+# SPA fallback for client-side routing: serve index.html for any path that isn't a
+# real static file, so deep links / refreshes don't 404. Pages Functions (the /api/*
+# routes) are matched BEFORE this file, so API requests are never rewritten here.
+/*    /index.html    200

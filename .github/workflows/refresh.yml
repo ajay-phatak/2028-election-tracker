@@ -1,0 +1,58 @@
+# Manual KV warm (see docs/kv-warmer-plan.md). Curls the token-gated
+# /api/refresh endpoint on demand, e.g. right after a Pages deploy:
+#   gh workflow run refresh.yml -f only=markets
+#
+# The SCHEDULED warm moved to a Cloudflare Cron Trigger Worker (cron-worker/):
+# GitHub throttled the "*/15" schedule to roughly hourly with multi-hour gaps,
+# and disables schedules after 60 days of repo inactivity. Don't re-add a
+# schedule here while that Worker runs; the two together would exceed the
+# free-tier KV write quota (1,000/day).
+#
+# Setup (one-time): add a repo secret REFRESH_TOKEN equal to the Pages
+# REFRESH_TOKEN env var (Settings -> Secrets and variables -> Actions -> New
+# repository secret). Optionally set a repo variable PAGES_URL to override the
+# default base URL (e.g. to target a preview deployment).
+
+name: Refresh KV cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        # markets and news are separate runs: together they exceed one
+        # invocation's 50-subrequest budget, so `all` would skip part of news.
+        description: "Which group to warm (markets|news|core|races|histories|all)"
+        required: false
+        default: "markets"
+
+permissions:
+  contents: read
+
+# Never let two manual warms overlap; the newest run wins.
+concurrency:
+  group: kv-warmer
+  cancel-in-progress: true
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_URL: ${{ vars.PAGES_URL || 'https://2028-election-tracker.pages.dev' }} # TODO(2028): confirm host
+      REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+      ONLY: ${{ inputs.only || 'markets' }}
+    steps:
+      - name: Warm KV (${{ env.ONLY }})
+        run: |
+          set -uo pipefail
+          if [ -z "${REFRESH_TOKEN:-}" ]; then
+            echo "::error::REFRESH_TOKEN secret is not set in this repo"
+            exit 1
+          fi
+          # --fail-with-body: print the JSON summary, but exit non-zero on HTTP
+          # >=400 (401 bad token / 503 misconfig / 5xx). A 207 partial refresh is
+          # < 400, so it succeeds here but its failures[] is still printed.
+          curl -sS --fail-with-body --max-time 180 \
+            -H "X-Refresh-Token: $REFRESH_TOKEN" \
+            "$BASE_URL/api/refresh?only=$ONLY"
+          echo
