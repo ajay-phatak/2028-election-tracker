@@ -5,7 +5,7 @@ export default function ArchivePage() {
     <section className="rounded-lg border border-ops-border bg-ops-panel p-4">
       <h2 className="text-base font-extrabold tracking-tight text-ops-text">Past election trackers</h2>
       <p className="mt-1 text-xs text-ops-muted">
-        Earlier trackers are kept as they were. Each opens as its own site.
+        Earlier trackers are kept as they were, each under its own year.
       </p>
       {ARCHIVE.length === 0 ? (
         <p className="mt-4 text-sm text-ops-muted">Nothing archived yet.</p>
@@ -14,7 +14,7 @@ export default function ArchivePage() {
           {ARCHIVE.map((t) => (
             <li key={t.year}>
               <a
-                href={t.url}
+                href={t.path}
                 className="group flex h-full flex-col rounded-lg border border-ops-border bg-ops-panel-2 p-4 transition-colors hover:border-blue-500/60 focus-visible:border-blue-500 focus-visible:outline-none"
               >
                 <span className="text-2xl font-extrabold tracking-tight text-ops-text">{t.year}</span>

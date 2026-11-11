@@ -1,4 +1,5 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
+import { ARCHIVE } from './src/config/archive.config.js'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -35,7 +36,24 @@ function devApi() {
   }
 }
 
+// Local stand-in for functions/<year>/[[path]].js: proxy /<year>/* to the archived
+// tracker so the archive links work in `vite dev`. Set ARCHIVE_<year>_ORIGIN in
+// .env.local to point at a locally served build instead of the deployed one.
+function archiveProxy(env) {
+  return Object.fromEntries(
+    ARCHIVE.map((t) => [
+      `/${t.year}/`,
+      {
+        target: env[`ARCHIVE_${t.year}_ORIGIN`] || t.origin,
+        changeOrigin: true,
+        rewrite: (p) => p.slice(`/${t.year}`.length) || '/',
+      },
+    ])
+  )
+}
+
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss(), devApi()],
-})
+  server: { proxy: archiveProxy(loadEnv(mode, process.cwd(), 'ARCHIVE_')) },
+}))
